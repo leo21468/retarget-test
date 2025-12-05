@@ -1,6 +1,7 @@
 import os
 import argparse
 import numpy as np
+import traceback
 
 # Make tqdm optional
 try:
@@ -180,7 +181,6 @@ def convert_smpl_to_smplx(input_path, output_path, gender='neutral'):
     except Exception as e:
         print(f"ERROR: Failed to convert {input_path}")
         print(f"       Exception: {e}")
-        import traceback
         print("       Traceback:")
         traceback.print_exc()
         return False

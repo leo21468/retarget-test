@@ -8,14 +8,15 @@ detailed logging, and graceful handling of malformed data.
 import numpy as np
 import os
 import sys
+import io
 from pathlib import Path
+from smpl_to_smplx import convert_smpl_to_smplx
+from npy_handler import save_npy, load_npy
 
 
 def test_empty_poses_rejection():
     """Test that empty pose arrays are properly rejected."""
     print("\n=== Test: Empty Poses Rejection ===")
-    from smpl_to_smplx import convert_smpl_to_smplx
-    from npy_handler import save_npy
     
     input_file = "test_empty_poses.npy"
     output_file = "test_empty_poses_out.npy"
@@ -50,8 +51,6 @@ def test_empty_poses_rejection():
 def test_malformed_betas_handling():
     """Test that betas with unexpected shapes are handled gracefully."""
     print("\n=== Test: Malformed Betas Handling ===")
-    from smpl_to_smplx import convert_smpl_to_smplx
-    from npy_handler import save_npy, load_npy
     
     test_cases = [
         ("5 elements", 5),
@@ -107,10 +106,6 @@ def test_malformed_betas_handling():
 def test_nan_inf_detection():
     """Test that NaN and Inf values in poses are detected and logged."""
     print("\n=== Test: NaN/Inf Detection ===")
-    from smpl_to_smplx import convert_smpl_to_smplx
-    from npy_handler import save_npy
-    import io
-    import sys
     
     input_file = "test_nan_inf.npy"
     output_file = "test_nan_inf_out.npy"
@@ -159,8 +154,6 @@ def test_nan_inf_detection():
 def test_3d_poses_rejection():
     """Test that 3D pose arrays are properly rejected."""
     print("\n=== Test: 3D Poses Rejection ===")
-    from smpl_to_smplx import convert_smpl_to_smplx
-    from npy_handler import save_npy
     
     input_file = "test_3d_poses.npy"
     output_file = "test_3d_poses_out.npy"
@@ -194,10 +187,6 @@ def test_3d_poses_rejection():
 def test_keys_logging():
     """Test that available keys are logged."""
     print("\n=== Test: Available Keys Logging ===")
-    from smpl_to_smplx import convert_smpl_to_smplx
-    from npy_handler import save_npy
-    import io
-    import sys
     
     input_file = "test_keys_logging.npy"
     output_file = "test_keys_logging_out.npy"
@@ -245,10 +234,6 @@ def test_keys_logging():
 def test_trans_validation():
     """Test that trans array is validated."""
     print("\n=== Test: Trans Array Validation ===")
-    from smpl_to_smplx import convert_smpl_to_smplx
-    from npy_handler import save_npy
-    import io
-    import sys
     
     input_file = "test_trans_validation.npy"
     output_file = "test_trans_validation_out.npy"
