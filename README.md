@@ -46,13 +46,34 @@ pip install numpy torch matplotlib imageio imageio-ffmpeg
 
 ### Optional Dependencies (for full functionality)
 ```bash
-pip install scipy pyyaml tqdm natsort rich
+pip install scipy pyyaml tqdm natsort rich torchgeometry
 ```
 
 Or install from requirements.txt:
 ```bash
 pip install -r requirements.txt
 ```
+
+### FBX Library (Optional - for FBX file support)
+
+If you encounter errors related to missing `FbxCommon` module, you need to install the Autodesk FBX Python SDK:
+
+1. **Download the FBX Python SDK**:
+   - Visit: https://www.autodesk.com/developer-network/platform-technologies/fbx-sdk-2020-3-2
+   - Download the appropriate version for your platform and Python version
+   - Note: Make sure to match your Python version (e.g., Python 3.8, 3.9, 3.10)
+
+2. **Install the SDK**:
+   - Follow the installation instructions provided with the SDK
+   - On Windows: Run the installer and follow the wizard
+   - On Linux/Mac: Extract and run the installation script
+   
+3. **Verify Installation**:
+   ```bash
+   python -c "import FbxCommon; print('FBX SDK installed successfully')"
+   ```
+
+**Note**: FBX support is optional. If you don't need to work with FBX files, you can skip this installation. The core functionality of this repository (NPY/NPZ handling, SMPL/SMPLX conversion) works without FBX SDK.
 
 ## Usage
 
