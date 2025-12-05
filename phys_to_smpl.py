@@ -1,221 +1,140 @@
+# (only the full script; unchanged parts kept same as your last script)
 import sys
+import pathlib
 sys.path.append("./")
 
 import os
 import os.path as osp
-import pathlib
 import torch
 import numpy as np
+import yaml
 import torchgeometry as tgm
 from tqdm import tqdm
 
-# adjust this fallback to actual TokenHSI repo path
-tokenhsi_ROOT = "/home/leo/experiment/retarget/TokenHSI"
-tokenhsi_ROOT = pathlib.Path(tokenhsi_ROOT).resolve()
-sys.path.insert(0, str(tokenhsi_ROOT))
+# adjust this fallback to actual tokenhsi repo path
+TOKENHSI_ROOT = "/home/leo/experiment/retarget/TokenHSI"
+TOKENHSI_ROOT = pathlib.Path(TOKENHSI_ROOT).resolve()
+sys.path.insert(0, str(TOKENHSI_ROOT))
 
 from lpanlib.poselib.skeleton.skeleton3d import SkeletonTree, SkeletonState, SkeletonMotion
-from lpanlib.poselib.visualization.common import plot_skeleton_state, plot_skeleton_motion_interactive
-from lpanlib.poselib.core.rotation3d import quat_mul, quat_from_angle_axis, quat_mul_norm, quat_rotate, quat_identity
+from lpanlib.poselib.visualization.common import plot_skeleton_motion_interactive
+from lpanlib.poselib.core.rotation3d import quat_mul_norm
 
 from body_models.model_loader import get_body_model
 
 from lpanlib.isaacgym_utils.vis.api import vis_motion_use_scenepic_animation
 from lpanlib.others.colors import name_to_rgb
 
-from tokenhsi.data.data_utils import project_joints, project_joints_simple
-
-# pelvis, spine, neck, R_Shoulder, R_Elbow, R_Wrist, L_Shoulder, L_Elbow, L_Wrist, R_Hip, R_Knee, R_Ankle, L_Hip, L_Knee, L_Ankle
-joints_to_use = {
-    # "from_smpl_original_to_amp_humanoid": np.array([0, 6, 12, 17, 19, 21, 16, 18, 20, 2, 5, 8, 1, 4, 7]),
-    "from_smpl_original_to_phys_humanoid_v3": np.array([0, 6, 12, 17, 19, 21, 16, 18, 20, 2, 5, 8, 1, 4, 7]),
-}
-
-def invert_joint_mapping(src_to_dst, dst_size=None):
-    """
-    Invert a mapping that lists, for each source-index i, the destination index src_to_dst[i].
-    Returns an array rev where rev[dst] = src (or -1 if dst not covered).
-    """
-    if dst_size is None:
-        dst_size = int(src_to_dst.max()) + 1
-    rev = -np.ones(dst_size, dtype=int)
-    for src_idx, dst_idx in enumerate(src_to_dst):
-        rev[int(dst_idx)] = int(src_idx)
-    return rev
-
-# 生成从 phys_humanoid_v3 -> smpl_original 的映射（SMPL 关节数为 24）
-joints_to_use["from_phys_humanoid_v3_to_smpl_original"] = invert_joint_mapping(
-    joints_to_use["from_smpl_original_to_phys_humanoid_v3"],
-    dst_size = 24
-)
-
 if __name__ == "__main__":
-    # mjcf is a format for describing articulated rigid body systems, used by MuJoCo physics engine
-
-    # load skeleton of smpl_humanoid
-    smpl_humanoid_xml_path = osp.join(tokenhsi_ROOT, "tokenhsi/data/assets/mjcf/smpl_humanoid.xml")
-    smpl_humanoid_skeleton = SkeletonTree.from_mjcf(smpl_humanoid_xml_path)
-
-    # load skeleton of phys_humanoid_v3
-    phys_humanoid_v3_xml_path = osp.join(tokenhsi_ROOT, "tokenhsi/data/assets/mjcf/phys_humanoid_v3.xml")
+    # --- load skeletons ----------------------------------------------------
+    phys_humanoid_v3_xml_path = osp.join(TOKENHSI_ROOT, "tokenhsi/data/assets/mjcf/phys_humanoid_v3.xml")
     phys_humanoid_v3_skeleton = SkeletonTree.from_mjcf(phys_humanoid_v3_xml_path)
 
-    # load skeleton of smpl_original
+    # build an smpl-like skeleton tree (same as your original script)
     bm = get_body_model("SMPL", "NEUTRAL", batch_size=1, debug=False)
-    jts_global_trans = bm().joints[0, :24, :].cpu().detach().numpy() # transform gpu to cpu, detach tensors, convert to numpy
+    jts_global_trans = bm().joints[0, :24, :].cpu().detach().numpy()
     jts_local_trans = np.zeros_like(jts_global_trans)
     for i in range(jts_local_trans.shape[0]):
-        parent = bm.parents[i] # use tree structure to deduce local translation
+        parent = bm.parents[i]
         if parent == -1:
             jts_local_trans[i] = jts_global_trans[i]
         else:
             jts_local_trans[i] = jts_global_trans[i] - jts_global_trans[parent]
 
-    skel_dict = smpl_humanoid_skeleton.to_dict()
+    skel_dict = phys_humanoid_v3_skeleton.to_dict()  # reuse structure container
     skel_dict["node_names"] = [
         "Pelvis", "L_Hip", "R_Hip", "Torso", "L_Knee", "R_Knee", "Spine", "L_Ankle", "R_Ankle",
-        "Chest", "L_Toe", "R_Toe", "Neck", "L_Thorax", "R_Thorax", "Head", "L_Shoulder", "R_Shoulder", 
+        "Chest", "L_Toe", "R_Toe", "Neck", "L_Thorax", "R_Thorax", "Head", "L_Shoulder", "R_Shoulder",
         "L_Elbow", "R_Elbow", "L_Wrist", "R_Wrist", "L_Hand", "R_Hand",
     ]
     skel_dict["parent_indices"]["arr"] = bm.parents.numpy()
     skel_dict["local_translation"]["arr"] = jts_local_trans
     smpl_original_skeleton = SkeletonTree.from_dict(skel_dict)
 
-    # create tposes
+    # --- create tposes ----------------------------------------------------
+    phys_humanoid_v3_tpose = SkeletonState.zero_pose(phys_humanoid_v3_skeleton)
+    # adjust arms similar to original pipeline (if needed)
+    local_rotation = phys_humanoid_v3_tpose.local_rotation
+    local_rotation[phys_humanoid_v3_skeleton.index("left_upper_arm")] = quat_mul_norm(
+        torch.tensor([0.5, 0.5, 0.5, 0.5]), local_rotation[phys_humanoid_v3_skeleton.index("left_upper_arm")]
+    )
+    local_rotation[phys_humanoid_v3_skeleton.index("right_upper_arm")] = quat_mul_norm(
+        torch.tensor([0.5, -0.5, -0.5, 0.5]), local_rotation[phys_humanoid_v3_skeleton.index("right_upper_arm")]
+    )
     smpl_original_tpose = SkeletonState.zero_pose(smpl_original_skeleton)
-    phys_humanoid_v3_original_tpose = SkeletonState.zero_pose(phys_humanoid_v3_skeleton)
-    
-    local_rotation = smpl_original_tpose.local_rotation
-    local_rotation[smpl_original_skeleton.index("L_Shoulder")] = quat_mul(
-        quat_from_angle_axis(angle=torch.tensor([-90.0]), axis=torch.tensor([1.0, 0.0, 0.0]), degree=True), 
-        local_rotation[smpl_original_skeleton.index("L_Shoulder")]
-    )
-    local_rotation[smpl_original_skeleton.index("R_Shoulder")] = quat_mul(
-        quat_from_angle_axis(angle=torch.tensor([90.0]), axis=torch.tensor([1.0, 0.0, 0.0]), degree=True), 
-        local_rotation[smpl_original_skeleton.index("R_Shoulder")]
-    )
 
-    # input/output dirs
-    input_dir = osp.join(osp.dirname(__file__), "phys_processed")
-    output_dir = osp.join(osp.dirname(__file__), "phys_smpl")
+    # --- load motion list from yaml (same as your file) --------------------
+    yaml_path = osp.join(osp.dirname(__file__), "dataset_amass_loco.yaml")
+    with open(yaml_path, "r") as f:
+        cfg = yaml.safe_load(f)
 
+    motion_files = []
+    for category, motions in cfg["motions"].items():
+        for motion in motions:
+            motion_files.append(motion["file"])
+
+    output_dir = osp.join(osp.dirname(__file__), "smpl_motions_from_phys")
     os.makedirs(output_dir, exist_ok=True)
 
-    data_list = os.listdir(input_dir)
-    pbar = tqdm(data_list)
-    for fname in pbar:
-        pbar.set_description(fname)
+    # --- IMPORTANT: inspect source/target node names -----------------------
+    print("phys nodes (source):", phys_humanoid_v3_skeleton.node_names)
+    print("smpl nodes (target):", smpl_original_skeleton.node_names)
 
-        subset_name = fname.split("+__+")[0]
-        subject = fname.split("+__+")[1]
-        action = fname.split("+__+")[2][:-4] # leave out extentions
+    # --- joint_mapping: keys must be EXACT source names in phys_humanoid_v3_skeleton.node_names
+    # Completed mapping: every phys node mapped to a corresponding SMPL node
+    joint_mapping = {
+        "pelvis": "Pelvis",
+        "torso": "Spine",            # phys 'torso' -> SMPL 'Spine'
+        "head": "Head",
+        "right_upper_arm": "R_Shoulder",
+        "right_lower_arm": "R_Elbow",
+        "right_hand": "R_Wrist",
+        "left_upper_arm": "L_Shoulder",
+        "left_lower_arm": "L_Elbow",
+        "left_hand": "L_Wrist",
+        "right_thigh": "R_Hip",
+        "right_shin": "R_Knee",
+        "right_foot": "R_Ankle",
+        "left_thigh": "L_Hip",
+        "left_shin": "L_Knee",
+        "left_foot": "L_Ankle",
+    }
 
-        curr_output_dir = osp.join(output_dir, subset_name, fname[:-4])
+    # --- main loop: use SkeletonMotion.retarget_to (vectorized, recommended) ---
+    for motion_file in tqdm(motion_files):
+        phys_motion_path = osp.join(osp.dirname(__file__), motion_file)
+        phys_motion = SkeletonMotion.from_file(phys_motion_path)
+        fps = phys_motion.fps
 
-        os.makedirs(curr_output_dir, exist_ok=True)
+        # Directly retarget the whole motion
+        retargeted_motion = phys_motion.retarget_to(
+            joint_mapping=joint_mapping,
+            source_tpose_local_rotation=phys_humanoid_v3_tpose.local_rotation,
+            source_tpose_root_translation=phys_humanoid_v3_tpose.root_translation,
+            target_skeleton_tree=smpl_original_skeleton,
+            target_tpose_local_rotation=smpl_original_tpose.local_rotation,
+            target_tpose_root_translation=smpl_original_tpose.root_translation,
+            rotation_to_target_skeleton=torch.tensor([-0.5, -0.5, -0.5, 0.5]),
+            scale_to_target_skeleton=1.0,
+            z_up=True,
+        )
 
-        # load SMPL params
-        raw_params = np.load(osp.join(input_dir, fname), allow_pickle=True).item()
-        poses = torch.tensor(raw_params["poses"], dtype=torch.float32) # T * 24 * 3
-        trans = torch.tensor(raw_params["trans"], dtype=torch.float32) # T * 3 (root translation)
-        fps = raw_params["fps"]
+        # ground correction
+        if "stair" not in motion_file:
+            min_h = torch.min(retargeted_motion.global_translation[:, :, 2], dim=-1)[0].mean()
+        else:
+            min_h = torch.min(retargeted_motion.global_translation[:, :, 2], dim=-1)[0].min()
+        retargeted_motion.root_translation[:, 2] += -min_h
 
-        # compute world absolute position of root joint
-        trans = bm(
-            global_orient=poses[:, 0:3], 
-            body_pose=poses[:, 3:72],
-            transl=trans[:, :],
-        ).joints[:, 0, :].cpu().detach()
+        save_path = osp.join(output_dir, osp.basename(motion_file).replace("phys_humanoid_v3", "smpl"))
+        retargeted_motion.to_file(save_path)
 
-        poses = poses.reshape(-1, 24, 3)
+        # convert local_rotation (xyzw) -> wxyz for quaternion->angle_axis
+        poses_quat = retargeted_motion.local_rotation.clone()
+        poses_quat = poses_quat[:, :, [3, 0, 1, 2]]  # xyzw -> wxyz
+        poses_axis = tgm.quaternion_to_angle_axis(poses_quat.reshape(-1, 4)).reshape(poses_quat.shape[0], -1, 3)
+        trans = retargeted_motion.root_translation.clone()
+        params_save_path = save_path.replace("ref_motion.npy", "smpl_params.npy")
+        np.save(params_save_path, {"poses": poses_axis.cpu().numpy(), "trans": trans.cpu().numpy(), "fps": fps})
 
-        # angle axis ---> quaternion
-        poses_quat = tgm.angle_axis_to_quaternion(poses.reshape(-1, 3)).reshape(poses.shape[0], -1, 4) # default: w,x,y,z
-
-        # switch quaternion order
-        # wxyz -> xyzw
-        poses_quat = poses_quat[:, :, [1, 2, 3, 0]]
-
-        # generate motion
-        skeleton_state = SkeletonState.from_rotation_and_root_translation(smpl_original_skeleton, poses_quat, trans, is_local=True)
-        motion = SkeletonMotion.from_skeleton_state(skeleton_state, fps=fps)
-
-        # plot_skeleton_motion_interactive(motion)
-
-        ################ retarget ################
-
-        configs = {
-            "phys_humanoid_v3": {
-                "skeleton": phys_humanoid_v3_skeleton,
-                "xml_path": phys_humanoid_v3_xml_path,
-                "tpose": phys_humanoid_v3_tpose,
-                "joints_to_use": joints_to_use["from_phys_humanoid_v3_to_smpl_original"],
-                "root_height_offset": 0.07,
-            },
-        }
-
-        ###### retargeting ######
-        for k, v in configs.items():
-
-            target_origin_global_rotation = v["tpose"].global_rotation.clone()
-
-            target_aligned_global_rotation = quat_mul_norm( 
-                torch.tensor([-0.5, -0.5, -0.5, 0.5]), target_origin_global_rotation # experience
-            ) # rotate 90 degrees to align amp and phys as the SMPL source structure we want
-
-            target_final_global_rotation = quat_mul_norm(
-                skeleton_state.global_rotation.clone()[..., v["joints_to_use"], :], target_aligned_global_rotation.clone()
-            )
-            target_final_root_translation = skeleton_state.root_translation.clone()
-
-            new_skeleton_state = SkeletonState.from_rotation_and_root_translation(
-                skeleton_tree=v["skeleton"],
-                r=target_final_global_rotation,
-                t=target_final_root_translation,
-                is_local=False,
-            ).local_repr()
-            new_motion = SkeletonMotion.from_skeleton_state(new_skeleton_state, fps=fps)
-
-            new_motion_params_root_trans = new_motion.root_translation.clone()
-            new_motion_params_local_rots = new_motion.local_rotation.clone()
-
-            # check foot-ground penetration
-            if "stair" not in fname:
-                min_h = torch.min(new_motion.global_translation[:, :, 2], dim=-1)[0].mean()
-            else:
-                min_h = torch.min(new_motion.global_translation[:, :, 2], dim=-1)[0].min()
-
-            for i in range(new_motion.global_translation.shape[0]):
-                new_motion_params_root_trans[i, 2] += -min_h
-
-            # adjust the height of the root to avoid ground penetration
-            root_height_offset = v["root_height_offset"]
-            new_motion_params_root_trans[:, 2] += root_height_offset
-
-            # update new_motion
-            new_skeleton_state = SkeletonState.from_rotation_and_root_translation(v["skeleton"], new_motion_params_local_rots, new_motion_params_root_trans, is_local=True)
-            new_motion = SkeletonMotion.from_skeleton_state(new_skeleton_state, fps=fps)
-
-            if k == "phys_humanoid" or k == "phys_humanoid_v2" or k == "phys_humanoid_v3":
-                new_motion = project_joints_simple(new_motion)
-            else:
-                pass
-
-            # save retargeted motion
-            save_dir = osp.join(curr_output_dir, k)
-            os.makedirs(save_dir, exist_ok=True)
-            save_path = osp.join(save_dir, "ref_motion.npy")
-            new_motion.to_file(save_path)
-
-            # plot_skeleton_motion_interactive(new_motion)
-
-            # scenepic animation
-            vis_motion_use_scenepic_animation(
-                asset_filename=v["xml_path"],
-                rigidbody_global_pos=new_motion.global_translation,
-                rigidbody_global_rot=new_motion.global_rotation,
-                fps=fps,
-                up_axis="z",
-                color=name_to_rgb['AliceBlue'] * 255,
-                output_path=osp.join(save_dir, "ref_motion_render.html"),
-            )
+    print("Done")
