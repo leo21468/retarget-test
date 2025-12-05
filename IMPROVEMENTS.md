@@ -103,6 +103,32 @@ visualizer.render_motion_sequence(positions, 'motion.mp4', fps=30)
 - Handles multiple betas dimensions
 - Returns success/failure status
 
+**Latest Debugging Enhancements (Dec 2025)**:
+- **Available Keys Logging**: Logs all available keys in the input file at the start of processing for easier debugging
+- **Empty Pose Detection**: Validates that pose arrays are not empty before attempting conversion
+- **Enhanced Betas Validation**: 
+  - Handles any betas shape (not just 10 or 16 elements)
+  - Automatically pads betas with zeros if too short (< 16 elements)
+  - Automatically truncates betas if too long (> 16 elements)
+  - Logs warnings for unexpected betas shapes with clear guidance
+  - Validates betas data type
+- **Pose Data Validation**:
+  - Checks for NaN and Inf values in poses with count reporting
+  - Validates pose dimensions and provides detailed error messages
+  - Warns about poses with insufficient dimensions (< 66)
+  - Logs information about pose truncation when needed
+- **Trans Array Validation**: Validates trans array dimensions and checks for NaN/Inf values
+- **Enhanced Logging**:
+  - All log messages use consistent prefixes (INFO, WARNING, ERROR, SUCCESS)
+  - Detailed shape and dtype information for all arrays
+  - Clear extraction information for root_orient and pose_body
+  - Gender setting confirmation
+- **Improved Error Messages**:
+  - Multi-line error messages with clear guidance
+  - Detailed context in error messages (shapes, available keys, etc.)
+  - Full traceback information for debugging
+  - Actionable suggestions for resolving issues
+
 ### 4. Documentation and Examples
 
 **Created**:
