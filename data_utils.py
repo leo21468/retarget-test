@@ -62,12 +62,13 @@ def process_amass_seq(fname, output_path):
         # downsample from source fps to 30hz
         source_fps = raw_params.get("mocap_frame_rate", raw_params.get("mocap_framerate", 30))
         target_fps = 30
-        skip = max(1, int(source_fps // target_fps))
         
-        # Validate indices before downsampling
-        if skip <= 0:
-            print(f"Warning: Invalid skip value {skip}, using skip=1")
-            skip = 1
+        # Validate source_fps to prevent invalid skip values
+        if not isinstance(source_fps, (int, float)) or source_fps <= 0:
+            print(f"Warning: Invalid source_fps {source_fps}, using default 30")
+            source_fps = 30
+        
+        skip = max(1, int(source_fps // target_fps))
         
         # Ensure we have data to downsample
         if len(poses) == 0 or len(trans) == 0:

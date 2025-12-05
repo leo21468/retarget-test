@@ -39,15 +39,16 @@ if __name__ == "__main__":
     # selected motions
     candidates = cfg["motions"]
     
-    # Dynamic CPU usage adjustment
+    # Dynamic CPU usage adjustment (for future parallel implementation)
+    # Note: Currently processes sequentially; num_workers is reserved for future parallel processing
     if args.num_workers is None:
         cpu_count = multiprocessing.cpu_count()
         # Use at most half of available CPUs or the number of files, whichever is smaller
         num_workers = min(max(1, cpu_count // 2), len(candidates))
-        print(f"Auto-detected {cpu_count} CPUs, using {num_workers} workers for {len(candidates)} files")
+        print(f"Auto-detected {cpu_count} CPUs (sequential processing, {num_workers} workers calculated for future use)")
     else:
         num_workers = max(1, args.num_workers)
-        print(f"Using {num_workers} workers for {len(candidates)} files")
+        print(f"Set to use {num_workers} workers (sequential processing, for future parallel implementation)")
     
     # Process sequences with error tracking
     success_count = 0

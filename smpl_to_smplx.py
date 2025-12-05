@@ -53,11 +53,14 @@ def convert_smpl_to_smplx(input_path, output_path, gender='neutral'):
             print(f"Renamed 'mocap_framerate' to 'mocap_frame_rate' for {input_path}")
 
         if 'poses' not in data_dict:
-            print(f"Error: Input file does not contain 'poses' key.")
-            print(f"Available keys: {list(data_dict.keys())}")
-            print(f"This might be a motion file (ref_motion.npy) rather than an SMPL params file.")
-            print(f"Hint: Make sure you're converting the correct file (usually smpl_params.npy, not ref_motion.npy)")
-            raise ValueError("Input file does not contain 'poses' key. Is this an SMPL file?")
+            error_msg = (
+                f"Input file does not contain 'poses' key. "
+                f"Available keys: {list(data_dict.keys())}. "
+                f"This might be a motion file (ref_motion.npy) rather than an SMPL params file. "
+                f"Hint: Make sure you're converting the correct file (usually smpl_params.npy, not ref_motion.npy)"
+            )
+            print(f"Error: {error_msg}")
+            raise ValueError(error_msg)
 
         poses = data_dict['poses']
         

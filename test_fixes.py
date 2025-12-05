@@ -184,8 +184,11 @@ def test_cpu_usage_adjustment():
     print("\nTest: Dynamic CPU usage adjustment")
     
     try:
-        # Just read the file directly instead of importing (to avoid dependency issues)
-        with open('preprocess_phys.py', 'r') as f:
+        # Use pathlib to get path relative to this file
+        test_dir = Path(__file__).parent
+        preprocess_file = test_dir / 'preprocess_phys.py'
+        
+        with open(preprocess_file, 'r') as f:
             source = f.read()
         
         # Check for CPU-related features
@@ -210,7 +213,11 @@ def test_readme_fbx_instructions():
     print("\nTest: README FBX installation instructions")
     
     try:
-        with open('README.md', 'r') as f:
+        # Use pathlib to get path relative to this file
+        test_dir = Path(__file__).parent
+        readme_file = test_dir / 'README.md'
+        
+        with open(readme_file, 'r') as f:
             readme_content = f.read()
         
         # Check for FBX-related content
