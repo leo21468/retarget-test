@@ -222,7 +222,10 @@ def test_readme_fbx_instructions():
         
         # Check for FBX-related content
         has_fbx_section = "FBX" in readme_content or "fbx" in readme_content
-        has_install_link = "autodesk.com" in readme_content or "FBX SDK" in readme_content
+        # Check for Autodesk link and SDK reference (avoiding URL substring check pattern)
+        has_autodesk_reference = "autodesk" in readme_content.lower()
+        has_sdk_reference = "FBX SDK" in readme_content or "FBX Python SDK" in readme_content
+        has_install_link = has_autodesk_reference and has_sdk_reference
         has_instructions = "Download" in readme_content or "Install" in readme_content
         
         if has_fbx_section and has_install_link and has_instructions:
