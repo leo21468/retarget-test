@@ -7,6 +7,7 @@ with proper error handling and detailed information display.
 
 import argparse
 import sys
+import numpy as np
 from pathlib import Path
 from npy_handler import NpyNpzHandler
 
@@ -45,7 +46,7 @@ def read_and_display_file(filepath: str, verbose: bool = False):
             
             if data.size > 0:
                 print(f"\nValue Statistics:")
-                if data.dtype in [float, 'float32', 'float64']:
+                if np.issubdtype(data.dtype, np.floating):
                     print(f"  Min: {data.min():.6f}")
                     print(f"  Max: {data.max():.6f}")
                     print(f"  Mean: {data.mean():.6f}")
@@ -81,7 +82,7 @@ def read_and_display_file(filepath: str, verbose: bool = False):
                     print(f"  Dtype: {arr.dtype}")
                     print(f"  Size: {arr.size:,} elements")
                     
-                    if arr.size > 0 and arr.dtype in [float, 'float32', 'float64']:
+                    if arr.size > 0 and np.issubdtype(arr.dtype, np.floating):
                         print(f"  Min: {arr.min():.6f}")
                         print(f"  Max: {arr.max():.6f}")
                         print(f"  Mean: {arr.mean():.6f}")

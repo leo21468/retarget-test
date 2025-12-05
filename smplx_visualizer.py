@@ -23,8 +23,9 @@ class SMPLXVisualizer:
     
     def __init__(self):
         """Initialize the SMPLX visualizer."""
-        # SMPLX has 55 joints (22 body + 30 hand + 3 head joints)
-        # For basic visualization, we focus on body joints
+        # SMPLX has 55 joints total (22 body + 30 hand + 3 head joints)
+        # This list contains only the 22 body joints for basic skeleton visualization
+        # Hand and head joints are excluded for simplicity
         self.body_joint_names = [
             'pelvis', 'left_hip', 'right_hip', 'spine1', 'left_knee', 'right_knee',
             'spine2', 'left_ankle', 'right_ankle', 'spine3', 'left_foot', 'right_foot',
@@ -277,8 +278,8 @@ class SMPLXVisualizer:
         
         for key, value in data.items():
             if isinstance(value, np.ndarray):
-                # Only compute stats for numeric types
-                if value.size > 0 and np.issubdtype(value.dtype, np.number):
+                # Only compute stats for numeric types (check dtype first for performance)
+                if np.issubdtype(value.dtype, np.number) and value.size > 0:
                     info[key] = {
                         'shape': value.shape,
                         'dtype': str(value.dtype),

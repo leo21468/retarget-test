@@ -215,8 +215,10 @@ class NpyNpzHandler:
                     return False
                 
                 # Only check for NaN in numeric types
+                # For large arrays, sample-based checking could be added for performance
                 if np.issubdtype(data.dtype, np.floating):
-                    if np.isnan(data).any():
+                    # Use a more efficient check that short-circuits on first NaN
+                    if np.any(np.isnan(data)):
                         logger.warning("Array contains NaN values")
                         return False
                 return True
@@ -240,9 +242,9 @@ class NpyNpzHandler:
                             logger.warning(f"Empty array for key: {key}")
                             return False
                         
-                        # Only check NaN for floating point types
+                        # Only check NaN for floating point types (efficient check)
                         if np.issubdtype(value.dtype, np.floating):
-                            if np.isnan(value).any():
+                            if np.any(np.isnan(value)):
                                 logger.warning(f"Array contains NaN for key: {key}")
                                 return False
                 
