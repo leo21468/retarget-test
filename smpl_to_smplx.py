@@ -28,16 +28,26 @@ def convert_smpl_to_smplx(input_path, output_path, gender='neutral'):
         # Load SMPL data
         smpl_data = load_npy(input_path)
         
+        # Debugging: Log shape of the input file
+        print(f"Processing file: {input_path}")
+
         # Handle dict inside array
         if isinstance(smpl_data, np.ndarray) and smpl_data.dtype == object:
-            data_dict = dict(smpl_data.item())
+            try:
+                data_dict = dict(smpl_data.item())
+            except Exception as e:
+                print(f"Failed to process smpl_data.item(): {e}")
+                raise ValueError("Input file structure is invalid or corrupted.")
         else:
             data_dict = dict(smpl_data)
 
         # Handle betas padding for SMPL-X (pad from 10 to 16 if necessary)
         if 'betas' in data_dict:
             betas = data_dict['betas']
+            print(f"Betas in the file: {betas}")  # Debugging output
             if betas.shape == (10,):
+                if betas.dtype.kind != 'f':  # Check for floating-point type
+                    print("Warning: Unexpected dtype for betas. Expected float.")
                 data_dict['betas'] = np.concatenate([betas, np.zeros(6, dtype=betas.dtype)])
                 print(f"Padded betas from 10 to 16 for {input_path}")
             elif betas.ndim == 2 and betas.shape[1] == 10:
@@ -53,9 +63,15 @@ def convert_smpl_to_smplx(input_path, output_path, gender='neutral'):
             print(f"Renamed 'mocap_framerate' to 'mocap_frame_rate' for {input_path}")
 
         if 'poses' not in data_dict:
+            print(f"Keys in the loaded file: {data_dict.keys()}")  # Debugging output
             raise ValueError("Input file does not contain 'poses' key. Is this an SMPL file?")
 
         poses = data_dict['poses']
+
+        # Validate pose dimensions
+        if poses.ndim not in [1, 2]:
+            print(f"Unexpected dimensionality for poses: {poses.ndim}. Expected 1D or 2D arrays.")
+            raise ValueError("Unexpected poses format. Ensure poses have 1D or 2D shape.")
         
         # Handle different pose dimensions
         if poses.ndim == 2 and poses.shape[1] > 72:
