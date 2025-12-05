@@ -16,36 +16,72 @@ from lpanlib.poselib.visualization.common import plot_skeleton_state, plot_skele
 from lpanlib.poselib.core.rotation3d import quat_mul, quat_from_angle_axis, quat_mul_norm, quat_rotate, quat_identity
 
 def process_amass_seq(fname, output_path):
-
-    # load raw params from AMASS dataset
-    raw_params = dict(np.load(fname, allow_pickle=True))
-
-    poses = raw_params["poses"] # rotations
-    trans = raw_params["trans"] # translations
-
-    # downsample from 120hz to 30hz
-    source_fps = raw_params["mocap_frame_rate"]
-    target_fps = 30
-    skip = int(source_fps // target_fps)
-    poses = poses[::skip]
-    trans = trans[::skip]
-
-    # extract 24 SMPL joints from 55 SMPL-X joints
-    joints_to_use = np.array(
-        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 25, 40]
-    )
-    joints_to_use = np.arange(0, 156).reshape((-1, 3))[joints_to_use].reshape(-1) # convert joint indices to 72 indexes (3*24)
-    poses = poses[:, joints_to_use] # take out corresponding x, y, z rotations
-
-    required_params = {}
-    required_params["poses"] = poses
-    required_params["trans"] = trans
-    required_params["fps"] = target_fps
+    """
+    Process AMASS sequence data and convert to target format.
     
-    # save
-    np.save(output_path, required_params)
+    Args:
+        fname: Input file path
+        output_path: Output file path
     
-    return
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        # load raw params from AMASS dataset
+        from npy_handler import load_npz, save_npy
+        
+        # Load file based on extension
+        if fname.endswith('.npz'):
+            raw_params = load_npz(fname)
+        elif fname.endswith('.npy'):
+            raw_params = dict(np.load(fname, allow_pickle=True))
+        else:
+            raise ValueError(f"Unsupported file format: {fname}")
+
+        # Validate required keys
+        if "poses" not in raw_params or "trans" not in raw_params:
+            raise ValueError(f"Missing required keys 'poses' or 'trans' in {fname}")
+
+        poses = raw_params["poses"]  # rotations
+        trans = raw_params["trans"]  # translations
+
+        # downsample from source fps to 30hz
+        source_fps = raw_params.get("mocap_frame_rate", raw_params.get("mocap_framerate", 30))
+        target_fps = 30
+        skip = max(1, int(source_fps // target_fps))
+        poses = poses[::skip]
+        trans = trans[::skip]
+
+        # extract 24 SMPL joints from 55 SMPL-X joints
+        joints_to_use = np.array(
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 25, 40]
+        )
+        joints_to_use = np.arange(0, 156).reshape((-1, 3))[joints_to_use].reshape(-1)  # convert joint indices to 72 indexes (3*24)
+        
+        # Handle different pose dimensions
+        if poses.shape[1] >= 156:
+            poses = poses[:, joints_to_use]  # take out corresponding x, y, z rotations
+        elif poses.shape[1] == 72:
+            # Already in SMPL format
+            pass
+        else:
+            print(f"Warning: Unexpected pose dimension {poses.shape[1]}, keeping as is")
+
+        required_params = {}
+        required_params["poses"] = poses
+        required_params["trans"] = trans
+        required_params["fps"] = target_fps
+        
+        # save
+        save_npy(output_path, required_params, allow_overwrite=True)
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error processing {fname}: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 def project_joints_simple(motion):
     """ This is the our revised function used by TokenHSI, designed for phys_humanoid_v3.xml 

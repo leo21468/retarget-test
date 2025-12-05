@@ -1,48 +1,94 @@
 import os
 import argparse
 import numpy as np
-from tqdm import tqdm
+
+# Make tqdm optional
+try:
+    from tqdm import tqdm
+except ImportError:
+    # Fallback if tqdm not available
+    def tqdm(iterable, *args, **kwargs):
+        return iterable
 
 def convert_smpl_to_smplx(input_path, output_path, gender='neutral'):
-    # Load SMPL data
-    smpl_data = np.load(input_path, allow_pickle=True)
-    data_dict = dict(smpl_data)  # Convert to dict for modification
+    """
+    Convert SMPL format motion data to SMPL-X format.
+    
+    Args:
+        input_path: Path to input SMPL file
+        output_path: Path to save SMPL-X file
+        gender: Gender for SMPL-X model ('male', 'female', or 'neutral')
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        from npy_handler import load_npy, save_npy
+        
+        # Load SMPL data
+        smpl_data = load_npy(input_path)
+        
+        # Handle dict inside array
+        if isinstance(smpl_data, np.ndarray) and smpl_data.dtype == object:
+            data_dict = dict(smpl_data.item())
+        else:
+            data_dict = dict(smpl_data)
 
-    # Handle betas padding for SMPL-X (pad from 10 to 16 if necessary)
-    if 'betas' in data_dict:
-        betas = data_dict['betas']
-        if betas.shape == (10,):
-            data_dict['betas'] = np.concatenate([betas, np.zeros(6, dtype=betas.dtype)])
-            print(f"Padded betas from 10 to 16 for {input_path}")
-        elif betas.shape not in [(16,), (1, 16)]:
-            raise ValueError(f"Unexpected betas shape: {betas.shape}. Expected (10,), (16,), or (1,16) for padding to SMPL-X.")
+        # Handle betas padding for SMPL-X (pad from 10 to 16 if necessary)
+        if 'betas' in data_dict:
+            betas = data_dict['betas']
+            if betas.shape == (10,):
+                data_dict['betas'] = np.concatenate([betas, np.zeros(6, dtype=betas.dtype)])
+                print(f"Padded betas from 10 to 16 for {input_path}")
+            elif betas.ndim == 2 and betas.shape[1] == 10:
+                data_dict['betas'] = np.concatenate([betas, np.zeros((betas.shape[0], 6), dtype=betas.dtype)], axis=1)
+                print(f"Padded betas from 10 to 16 for {input_path}")
+            elif betas.shape not in [(16,), (1, 16)]:
+                if betas.ndim == 2 and betas.shape[1] != 16:
+                    print(f"Warning: Unexpected betas shape: {betas.shape}. Expected (10,), (16,), or (N,10/16)")
 
-    # Handle mocap_frame_rate variations
-    if 'mocap_framerate' in data_dict:
-        data_dict['mocap_frame_rate'] = data_dict.pop('mocap_framerate')
-        print(f"Renamed 'mocap_framerate' to 'mocap_frame_rate' for {input_path}")
+        # Handle mocap_frame_rate variations
+        if 'mocap_framerate' in data_dict:
+            data_dict['mocap_frame_rate'] = data_dict.pop('mocap_framerate')
+            print(f"Renamed 'mocap_framerate' to 'mocap_frame_rate' for {input_path}")
 
-    if 'poses' not in data_dict:
-        raise ValueError("Input file does not contain 'poses' key. Is this an SMPL file?")
+        if 'poses' not in data_dict:
+            raise ValueError("Input file does not contain 'poses' key. Is this an SMPL file?")
 
-    poses = data_dict['poses']
-    if poses.shape[1] > 72:
-        poses = poses[:, :72]
+        poses = data_dict['poses']
+        
+        # Handle different pose dimensions
+        if poses.ndim == 2 and poses.shape[1] > 72:
+            poses = poses[:, :72]
+        elif poses.ndim == 1 and poses.shape[0] > 72:
+            poses = poses[:72]
 
-    # Map to SMPL-X format
-    data_dict['root_orient'] = poses[:, :3]
-    data_dict['pose_body'] = poses[:, 3:66]  # 21 joints x 3 = 63, ignoring SMPL hand poses
+        # Map to SMPL-X format
+        if poses.ndim == 2:
+            data_dict['root_orient'] = poses[:, :3]
+            data_dict['pose_body'] = poses[:, 3:66]  # 21 joints x 3 = 63, ignoring SMPL hand poses
+        else:
+            data_dict['root_orient'] = poses[:3]
+            data_dict['pose_body'] = poses[3:66]
 
-    # Ensure gender is set
-    if 'gender' not in data_dict:
-        data_dict['gender'] = np.array(gender)
+        # Ensure gender is set
+        if 'gender' not in data_dict:
+            data_dict['gender'] = np.array(gender)
 
-    # Remove original poses key
-    del data_dict['poses']
+        # Remove original poses key
+        del data_dict['poses']
 
-    # Save as SMPL-X npy
-    np.save(output_path, data_dict)
-    print(f"Converted {input_path} to {output_path}")
+        # Save as SMPL-X npy
+        save_npy(output_path, data_dict, allow_overwrite=True)
+        print(f"Converted {input_path} to {output_path}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error converting {input_path}: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 def process_directory(src_folder, tgt_folder, gender='neutral'):
     os.makedirs(tgt_folder, exist_ok=True)
