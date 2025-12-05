@@ -107,24 +107,27 @@ class NpyNpzHandler:
             logger.error(f"Error loading .npz file {filepath}: {e}")
             raise
     
-    def save_npy(self, filepath: Union[str, Path], data: np.ndarray, 
+    def save_npy(self, filepath: Union[str, Path], data: Union[np.ndarray, Dict[str, Any]], 
                  allow_overwrite: bool = False) -> None:
         """
         Save data to a .npy file.
         
         Args:
             filepath: Path where to save the file
-            data: Numpy array to save
+            data: Numpy array or dict to save (dict will be converted to object array)
             allow_overwrite: Whether to allow overwriting existing files
             
         Raises:
             FileExistsError: If file exists and overwrite is not allowed
-            TypeError: If data is not a numpy array
         """
         filepath = Path(filepath)
         
+        # Convert dict to numpy object array if needed
+        if isinstance(data, dict):
+            data = np.array(data, dtype=object)
+        
         if not isinstance(data, np.ndarray):
-            raise TypeError(f"Expected numpy array, got {type(data)}")
+            raise TypeError(f"Expected numpy array or dict, got {type(data)}")
         
         if filepath.exists() and not allow_overwrite:
             raise FileExistsError(
@@ -138,7 +141,8 @@ class NpyNpzHandler:
         try:
             np.save(filepath, data)
             logger.info(f"Successfully saved .npy file: {filepath}")
-            logger.info(f"  Shape: {data.shape}, Dtype: {data.dtype}")
+            if hasattr(data, 'shape'):
+                logger.info(f"  Shape: {data.shape}, Dtype: {data.dtype}")
         except Exception as e:
             logger.error(f"Error saving .npy file {filepath}: {e}")
             raise
@@ -324,7 +328,7 @@ def load_npz(filepath: Union[str, Path], allow_pickle: bool = True) -> Dict[str,
     return handler.load_npz(filepath)
 
 
-def save_npy(filepath: Union[str, Path], data: np.ndarray, 
+def save_npy(filepath: Union[str, Path], data: Union[np.ndarray, Dict[str, Any]], 
              allow_overwrite: bool = False) -> None:
     """Convenience function to save .npy file."""
     handler = NpyNpzHandler()

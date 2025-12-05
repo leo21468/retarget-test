@@ -277,17 +277,25 @@ class SMPLXVisualizer:
         
         for key, value in data.items():
             if isinstance(value, np.ndarray):
-                info[key] = {
-                    'shape': value.shape,
-                    'dtype': str(value.dtype),
-                    'min': float(value.min()) if value.size > 0 else None,
-                    'max': float(value.max()) if value.size > 0 else None,
-                    'mean': float(value.mean()) if value.size > 0 else None
-                }
+                # Only compute stats for numeric types
+                if value.size > 0 and np.issubdtype(value.dtype, np.number):
+                    info[key] = {
+                        'shape': value.shape,
+                        'dtype': str(value.dtype),
+                        'min': float(value.min()),
+                        'max': float(value.max()),
+                        'mean': float(value.mean())
+                    }
+                else:
+                    info[key] = {
+                        'shape': value.shape,
+                        'dtype': str(value.dtype),
+                        'size': value.size
+                    }
             else:
                 info[key] = {
                     'type': str(type(value)),
-                    'value': str(value)
+                    'value': str(value) if not isinstance(value, (dict, list)) else f"{type(value).__name__} (truncated)"
                 }
         
         return info
