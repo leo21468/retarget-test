@@ -1,0 +1,16 @@
+# Motion datasets, please use your own paths
+amass_dir: "/home/leo/experiment/retarget/AMASS"
+
+motions:
+  - "ACCAD+__+Female1Walking_c3d+__+B10_-_walk_turn_left_(45)_stageii.npz"
+  - "ACCAD+__+Female1Walking_c3d+__+B11_-_walk_turn_left_(135)_stageii.npz"
+  - "ACCAD+__+Female1Walking_c3d+__+B12_-_walk_turn_right_(90)_stageii.npz"
+  - "ACCAD+__+Female1Walking_c3d+__+B13_-_walk_turn_right_(45)_stageii.npz"
+  - "ACCAD+__+Female1Walking_c3d+__+B14_-_walk_turn_right_(135)_stageii.npz"
+  - "ACCAD+__+Female1Walking_c3d+__+B15_-_walk_turn_around_(same_direction)_stageii.npz"
+  - "ACCAD+__+Female1Walking_c3d+__+B16_-_walk_turn_change_direction_stageii.npz"
+  - "ACCAD+__+Female1Walking_c3d+__+B1_-_stand_to_walk_stageii.npz"
+  - "ACCAD+__+Female1Walking_c3d+__+B2_-_walk_to_stand_stageii.npz"
+  - "ACCAD+__+Female1Walking_c3d+__+B2_-_walk_to_stand_t2_stageii.npz"
+  - "ACCAD+__+Female1Walking_c3d+__+B3_-_walk1_stageii.npz"
+  - "ACCAD+__+Female1Walking_c3d+__+B9_-_walk_turn_left_(90)_stageii.npz"
