@@ -227,9 +227,21 @@ if __name__ == "__main__":
         poses_quat = retargeted_motion.local_rotation.clone()
         poses_quat = poses_quat[:, :, [3, 0, 1, 2]]  # xyzw -> wxyz
         poses_axis = tgm.quaternion_to_angle_axis(poses_quat.reshape(-1, 4)).reshape(poses_quat.shape[0], -1, 3)
+        
+        # Reshape poses from (num_frames, 24, 3) to (num_frames, 72) for SMPL format
+        poses_reshaped = poses_axis.reshape(poses_axis.shape[0], -1)
+        
         trans = retargeted_motion.root_translation.clone()
         params_save_path = save_path.replace("ref_motion.npy", "smpl_params.npy")
-        np.save(params_save_path, {"poses": poses_axis.cpu().numpy(), "trans": trans.cpu().numpy(), "fps": fps})
+        
+        # Save with proper shape validation
+        try:
+            np.save(params_save_path, {"poses": poses_reshaped.cpu().numpy(), "trans": trans.cpu().numpy(), "fps": fps})
+            print(f"Saved smpl_params with poses shape: {poses_reshaped.shape}")
+        except Exception as e:
+            print(f"Error saving smpl_params to {params_save_path}: {e}")
+            import traceback
+            traceback.print_exc()
 
         # -------------------- video visualization --------------------
         mp4_out = save_path.replace(".npy", "_smpl_render.mp4")

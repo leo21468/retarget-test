@@ -53,15 +53,39 @@ def convert_smpl_to_smplx(input_path, output_path, gender='neutral'):
             print(f"Renamed 'mocap_framerate' to 'mocap_frame_rate' for {input_path}")
 
         if 'poses' not in data_dict:
-            raise ValueError("Input file does not contain 'poses' key. Is this an SMPL file?")
+            error_msg = (
+                f"Input file does not contain 'poses' key. "
+                f"Available keys: {list(data_dict.keys())}. "
+                f"This might be a motion file (ref_motion.npy) rather than an SMPL params file. "
+                f"Hint: Make sure you're converting the correct file (usually smpl_params.npy, not ref_motion.npy)"
+            )
+            print(f"Error: {error_msg}")
+            raise ValueError(error_msg)
 
         poses = data_dict['poses']
         
-        # Handle different pose dimensions
-        if poses.ndim == 2 and poses.shape[1] > 72:
+        # Handle different pose dimensions and shapes
+        if poses.ndim == 3:
+            # Handle shape (N, 24, 3) - reshape to (N, 72)
+            if poses.shape[1] == 24 and poses.shape[2] == 3:
+                print(f"Detected poses shape {poses.shape}, reshaping from (N, 24, 3) to (N, 72)")
+                poses = poses.reshape(poses.shape[0], -1)
+            else:
+                print(f"Warning: Unexpected 3D poses shape: {poses.shape}")
+                poses = poses.reshape(poses.shape[0], -1)
+        elif poses.ndim == 2 and poses.shape[1] > 72:
             poses = poses[:, :72]
         elif poses.ndim == 1 and poses.shape[0] > 72:
             poses = poses[:72]
+        
+        # Validate poses shape after processing
+        if poses.ndim == 2 and poses.shape[1] != 72:
+            print(f"Warning: Expected poses shape (N, 72), got {poses.shape}")
+            if poses.shape[1] < 72:
+                # Pad with zeros if too short
+                padding = np.zeros((poses.shape[0], 72 - poses.shape[1]), dtype=poses.dtype)
+                poses = np.concatenate([poses, padding], axis=1)
+                print(f"Padded poses to shape {poses.shape}")
 
         # Map to SMPL-X format
         if poses.ndim == 2:

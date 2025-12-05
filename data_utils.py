@@ -39,16 +39,41 @@ def process_amass_seq(fname, output_path):
             raise ValueError(f"Unsupported file format: {fname}")
 
         # Validate required keys
-        if "poses" not in raw_params or "trans" not in raw_params:
-            raise ValueError(f"Missing required keys 'poses' or 'trans' in {fname}")
+        if "poses" not in raw_params:
+            print(f"Error: Missing 'poses' key in {fname}")
+            print(f"Available keys: {list(raw_params.keys())}")
+            print(f"Hint: This file may not be in SMPL format. Check if it's the correct input file.")
+            raise ValueError(f"Missing required key 'poses' in {fname}")
+        
+        if "trans" not in raw_params:
+            print(f"Error: Missing 'trans' key in {fname}")
+            print(f"Available keys: {list(raw_params.keys())}")
+            print(f"Hint: This file may not be in SMPL format. Check if it's the correct input file.")
+            raise ValueError(f"Missing required key 'trans' in {fname}")
 
         poses = raw_params["poses"]  # rotations
         trans = raw_params["trans"]  # translations
+        
+        # Validate poses shape
+        if poses.ndim == 3 and poses.shape[1] == 24 and poses.shape[2] == 3:
+            print(f"Warning: Detected poses with shape {poses.shape}, reshaping to (N, 72)")
+            poses = poses.reshape(poses.shape[0], -1)
 
         # downsample from source fps to 30hz
         source_fps = raw_params.get("mocap_frame_rate", raw_params.get("mocap_framerate", 30))
         target_fps = 30
+        
+        # Validate source_fps to prevent invalid skip values
+        if not isinstance(source_fps, (int, float)) or source_fps <= 0:
+            print(f"Warning: Invalid source_fps {source_fps}, using default 30")
+            source_fps = 30
+        
         skip = max(1, int(source_fps // target_fps))
+        
+        # Ensure we have data to downsample
+        if len(poses) == 0 or len(trans) == 0:
+            raise ValueError(f"Empty poses or trans arrays in {fname}")
+        
         poses = poses[::skip]
         trans = trans[::skip]
 
@@ -58,8 +83,12 @@ def process_amass_seq(fname, output_path):
         )
         joints_to_use = np.arange(0, 156).reshape((-1, 3))[joints_to_use].reshape(-1)  # convert joint indices to 72 indexes (3*24)
         
-        # Handle different pose dimensions
+        # Handle different pose dimensions with bounds checking
         if poses.shape[1] >= 156:
+            # Validate that indices are within bounds
+            if np.max(joints_to_use) >= poses.shape[1]:
+                print(f"Error: Index out of bounds. Max index {np.max(joints_to_use)} >= poses shape[1] {poses.shape[1]}")
+                raise IndexError(f"Joint indices out of bounds for poses shape {poses.shape}")
             poses = poses[:, joints_to_use]  # take out corresponding x, y, z rotations
         elif poses.shape[1] == 72:
             # Already in SMPL format
